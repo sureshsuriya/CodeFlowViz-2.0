@@ -18,6 +18,13 @@ type WorkerResponse = {
   ok: boolean;
   result?: { type: string; value: string };
   logs?: Array<{ level: string; message: string }>;
+  timeline?: Array<{
+    step: number;
+    line: number;
+    event: string;
+    variables: Record<string, { type: string; value: string }>;
+  }>;
+  instrumentation?: { hookCount: number };
   error?: string;
 };
 
@@ -53,6 +60,7 @@ function runInSandbox(code: string, timeoutMs: number) {
       resolve({
         ...response,
         logs: response.logs ?? [],
+        timeline: response.timeline ?? [],
         durationMs: Math.round(performance.now() - startedAt),
         timedOut,
       });

@@ -182,3 +182,74 @@ button {
   gap: 0.4rem;
   color: #b8c9ee;
 }
+
+.executionLine {
+  background: linear-gradient(90deg, #2f76ff3d, #1b325c40) !important;
+  outline: 1px solid #4f83d866;
+}
+
+.executionGlyph {
+  background: #7ab8ff;
+  border-radius: 999px;
+  margin-left: 6px;
+  width: 8px !important;
+  height: 8px !important;
+}
+
+.timelineList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 0;
+}
+
+.timelineStep {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
+  border-color: #20365f;
+  background: #0b1427;
+  cursor: pointer;
+  text-align: left;
+}
+
+.timelineStep.active,
+.timelineStep:hover {
+  border-color: #70a7ff;
+  background: #132846;
+  box-shadow: 0 0 20px #2c74cf22;
+}
+
+.stepMeta {
+  color: #9fb8ea;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.variableList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.variableList code {
+  border: 1px solid #284979;
+  background: #07101f;
+  border-radius: 8px;
+  color: #d7e4f8;
+  font-family: JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  padding: 0.25rem 0.4rem;
+}
+
+.variableList.muted {
+  color: #7186ad;
+  font-size: 0.82rem;
+}

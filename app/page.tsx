@@ -14,7 +14,7 @@ export default function HomePage() {
       <section className="workspace">
         <aside className="panel left">
           <h2>Flow Controls</h2>
-          <p>Execute JavaScript in a constrained backend worker with CPU and memory guardrails.</p>
+          <p>Execute JavaScript through AST instrumentation, then replay assignment snapshots and loop checkpoints.</p>
           <button disabled>Step Into</button>
           <button disabled>Step Over</button>
           <button disabled>Reset</button>
@@ -29,7 +29,7 @@ export default function HomePage() {
 
         <aside className="panel right">
           <h2>Runtime Introspection</h2>
-          <p>Sandbox results, console logs, errors, and timeout status stream back from the execution API.</p>
+          <p>Trace events, highlighted source lines, console logs, errors, and timeout status stream back from the execution API.</p>
         </aside>
       </section>
     </main>

@@ -1,7 +1,7 @@
 'use client';
 
-import Editor, { type Monaco } from '@monaco-editor/react';
-import { useMemo, useState } from 'react';
+import Editor, { type Monaco, type OnMount } from '@monaco-editor/react';
+import { useMemo, useRef, useState } from 'react';
 
 const starterCode = `function fibonacci(n) {
   if (n <= 1) return n;
@@ -18,10 +18,24 @@ type ExecutionLog = {
   message: string;
 };
 
+type SerializedValue = {
+  type: string;
+  value: string;
+};
+
+type TimelineEvent = {
+  step: number;
+  line: number;
+  event: string;
+  variables: Record<string, SerializedValue>;
+};
+
 type ExecutionResponse = {
   ok: boolean;
-  result?: { type: string; value: string };
+  result?: SerializedValue;
   logs: ExecutionLog[];
+  timeline: TimelineEvent[];
+  instrumentation?: { hookCount: number };
   error?: string;
   durationMs: number;
   timedOut: boolean;
@@ -31,6 +45,10 @@ export default function CodeEditor() {
   const [code, setCode] = useState(starterCode);
   const [output, setOutput] = useState<ExecutionResponse | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [selectedStep, setSelectedStep] = useState<number | null>(null);
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
+  const monacoRef = useRef<Monaco | null>(null);
+  const decorationsRef = useRef<string[]>([]);
 
   const options = useMemo(
     () => ({
@@ -71,9 +89,42 @@ export default function CodeEditor() {
     });
   };
 
+  const handleEditorMount: OnMount = (editor, monaco) => {
+    editorRef.current = editor;
+    monacoRef.current = monaco;
+  };
+
+  const highlightLine = (line: number) => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!editor || !monaco) return;
+
+    decorationsRef.current = editor.deltaDecorations(decorationsRef.current, [
+      {
+        range: new monaco.Range(line, 1, line, 1),
+        options: {
+          isWholeLine: true,
+          className: 'executionLine',
+          glyphMarginClassName: 'executionGlyph',
+        },
+      },
+    ]);
+    editor.revealLineInCenter(line);
+  };
+
+  const selectStep = (event: TimelineEvent) => {
+    setSelectedStep(event.step);
+    highlightLine(event.line);
+  };
+
   const runCode = async () => {
     setIsRunning(true);
     setOutput(null);
+    setSelectedStep(null);
+
+    if (editorRef.current) {
+      decorationsRef.current = editorRef.current.deltaDecorations(decorationsRef.current, []);
+    }
 
     try {
       const response = await fetch('/api/execute', {
@@ -83,10 +134,15 @@ export default function CodeEditor() {
       });
       const result = (await response.json()) as ExecutionResponse;
       setOutput(result);
+      if (result.timeline?.[0]) {
+        setSelectedStep(result.timeline[0].step);
+        highlightLine(result.timeline[0].line);
+      }
     } catch (error) {
       setOutput({
         ok: false,
         logs: [],
+        timeline: [],
         durationMs: 0,
         timedOut: false,
         error: error instanceof Error ? error.message : 'Unable to reach the execution sandbox.',
@@ -100,9 +156,9 @@ export default function CodeEditor() {
     <div className="codeRunner">
       <div className="runnerToolbar">
         <button className="primaryAction" type="button" onClick={runCode} disabled={isRunning}>
-          {isRunning ? 'Running…' : 'Run in Sandbox'}
+          {isRunning ? 'Tracing…' : 'Trace Execution'}
         </button>
-        <span>JavaScript VM · 1s timeout · isolated worker</span>
+        <span>AST hooks · JavaScript VM · 1s timeout · isolated worker</span>
       </div>
 
       <div className="monacoPane">
@@ -112,6 +168,7 @@ export default function CodeEditor() {
           value={code}
           onChange={(value) => setCode(value ?? '')}
           beforeMount={handleEditorWillMount}
+          onMount={handleEditorMount}
           theme="void"
           options={options}
         />
@@ -119,13 +176,45 @@ export default function CodeEditor() {
 
       <div className={`outputPane ${output?.ok ? 'success' : output ? 'failure' : ''}`}>
         <div className="outputHeader">
-          <span>Sandbox Output</span>
-          {output ? <span>{output.durationMs}ms</span> : <span>Idle</span>}
+          <span>Execution Timeline</span>
+          {output ? (
+            <span>
+              {output.timeline.length} events · {output.instrumentation?.hookCount ?? 0} hooks · {output.durationMs}ms
+            </span>
+          ) : (
+            <span>Idle</span>
+          )}
         </div>
         {output ? (
           <div className="outputBody">
             {output.error ? <pre className="errorText">{output.error}</pre> : null}
             {output.result ? <pre>Result ({output.result.type}): {output.result.value}</pre> : null}
+            {output.timeline.length ? (
+              <ol className="timelineList" aria-label="Execution trace events">
+                {output.timeline.map((event) => (
+                  <li key={event.step}>
+                    <button
+                      className={selectedStep === event.step ? 'timelineStep active' : 'timelineStep'}
+                      type="button"
+                      onClick={() => selectStep(event)}
+                    >
+                      <span className="stepMeta">#{event.step} · line {event.line} · {event.event}</span>
+                      {Object.keys(event.variables).length ? (
+                        <span className="variableList">
+                          {Object.entries(event.variables).map(([name, value]) => (
+                            <code key={`${event.step}-${name}`}>
+                              {name}: {value.value}
+                            </code>
+                          ))}
+                        </span>
+                      ) : (
+                        <span className="variableList muted">loop checkpoint</span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            ) : null}
             {output.logs.length ? (
               <div className="logList">
                 {output.logs.map((log, index) => (
@@ -135,7 +224,7 @@ export default function CodeEditor() {
             ) : null}
           </div>
         ) : (
-          <p>Run code to see console output, return values, errors, and timeout status.</p>
+          <p>Run code to see variable snapshots, loop checkpoints, console output, errors, and timeout status.</p>
         )}
       </div>
     </div>
