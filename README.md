@@ -82,6 +82,17 @@ This separation solves a practical production constraint: sandboxed code tracing
 
 ## Installation & Setup
 
+### Repository Layout
+
+```text
+CodeFlowViz-2.0/
+├── frontend/   # Next.js cockpit UI (Vercel target)
+├── backend/    # Express + AST execution service (Railway target)
+└── package.json
+```
+
+The root workspace orchestrates both projects so common scripts (`npm run dev`, `npm run build`) can execute frontend and backend tasks together.
+
 ### Prerequisites
 
 - Node.js 20+
@@ -139,6 +150,15 @@ This starts both workspaces:
 | Frontend | `http://localhost:3000` | `npm run dev:frontend` |
 | Backend | `http://localhost:4000` | `npm run dev:backend` |
 
+### 3.1 Build and production preview
+
+```bash
+npm run build
+npm run start
+```
+
+Use this flow to verify production bundles before deploying to Vercel/Railway.
+
 ### 4. Verify the backend health endpoint
 
 ```bash
@@ -156,6 +176,24 @@ Expected response:
 
 ## Deployment
 
+### API Contract (frontend ↔ backend)
+
+The frontend posts source code to the backend execution endpoint:
+
+- **Method:** `POST`
+- **Endpoint:** `/api/execute`
+- **Content-Type:** `application/json`
+
+Example payload:
+
+```json
+{
+  "code": "function add(a,b){return a+b}; add(2,3);"
+}
+```
+
+The backend responds with trace telemetry consumed by the timeline and variable inspector panels.
+
 ### Frontend on Vercel
 
 1. Import the repository into Vercel.
@@ -170,6 +208,20 @@ Expected response:
 3. Add `PORT` if required by your Railway configuration.
 4. Add `CORS_ORIGIN` with the Vercel frontend URL.
 5. Deploy the Express service.
+
+### Post-deployment checklist
+
+1. Open the deployed frontend URL and run a simple snippet (`const x = 1 + 1`) to verify trace rendering.
+2. Confirm backend health is reachable from the public host: `GET /health`.
+3. Validate CORS by checking that browser requests to `/api/execute` succeed without preflight errors.
+4. Verify backend logs show execution steps and no worker-thread crashes.
+
+## Troubleshooting
+
+- **`Failed to fetch` from frontend**: Ensure `NEXT_PUBLIC_EXECUTE_API_URL` points to the backend `/api/execute` path and protocol (https/http) matches deployment.
+- **CORS errors in browser console**: Verify `CORS_ORIGIN` exactly matches the frontend origin, including scheme and subdomain.
+- **Port binding failures on Railway**: Confirm the service uses Railway-provided `PORT` and does not hardcode `4000` in production.
+- **No trace events returned**: Inspect backend logs for parser/runtime errors; test the same snippet directly against the API with `curl`.
 
 ## Roadmap
 
