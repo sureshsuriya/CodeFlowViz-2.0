@@ -39,12 +39,12 @@
 
 ## Core Features
 
-| Capability                          | Cockpit Signal                                                                                                          |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| **Real-time AST Tracing**           | Instruments JavaScript syntax trees before execution to capture line-level snapshots as code runs.                      |
-| **Live Variable Inspector**         | Surfaces scoped runtime values with type badges, serialized previews, and snapshot-aware inspection.                    |
-| **Playback Scrubber**               | Replays execution history so engineers can step into, over, and out of logic flow without rerunning mental simulations. |
-| **Tonal Layering “Void” Aesthetic** | Uses high-contrast depth, restrained neon accents, and cockpit-style panels to keep dense telemetry readable.           |
+| Capability | Cockpit Signal |
+| --- | --- |
+| **Real-time AST Tracing** | Instruments JavaScript syntax trees before execution to capture line-level snapshots as code runs. |
+| **Live Variable Inspector** | Surfaces scoped runtime values with type badges, serialized previews, and snapshot-aware inspection. |
+| **Playback Scrubber** | Replays execution history so engineers can step into, over, and out of logic flow without rerunning mental simulations. |
+| **Tonal Layering “Void” Aesthetic** | Uses high-contrast depth, restrained neon accents, and cockpit-style panels to keep dense telemetry readable. |
 
 ## Why CodeFlowViz?
 
@@ -72,236 +72,107 @@ This separation solves a practical production constraint: sandboxed code tracing
 
 ### Technology Stack
 
-| Layer            | Tools                                                          |
-| ---------------- | -------------------------------------------------------------- |
-| Frontend         | Next.js 14, React, Tailwind CSS, Framer Motion, Monaco Editor  |
-| Backend          | Node.js, Express, worker threads                               |
+| Layer | Tools |
+| --- | --- |
+| Frontend | Next.js 14, React, Tailwind CSS, Framer Motion, Monaco Editor |
+| Backend | Node.js, Express, worker threads |
 | Execution Engine | AST instrumentation, sandboxed execution, line-level snapshots |
-| Deployment       | Vercel frontend, Railway backend                               |
-| Initial Language | JavaScript                                                     |
+| Deployment | Vercel frontend, Railway backend |
+| Initial Language | JavaScript |
 
-## Local Development Setup
-
-This section is the **single source of truth** for getting CodeFlowViz 2.0 running on your own machine. Follow each step in order.
+## Installation & Setup
 
 ### Repository Layout
 
 ```text
 CodeFlowViz-2.0/
-├── frontend/        # Next.js 14 cockpit UI  →  http://localhost:3000
-├── backend/         # Express + AST engine   →  http://localhost:4000
-└── package.json     # Root npm workspace (manages both)
+├── frontend/   # Next.js cockpit UI (Vercel target)
+├── backend/    # Express + AST execution service (Railway target)
+└── package.json
 ```
 
----
+The root workspace orchestrates both projects so common scripts (`npm run dev`, `npm run build`) can execute frontend and backend tasks together.
 
-### Step 0 — Prerequisites
+### Prerequisites
 
-Make sure the following tools are installed **before** you begin:
+- Node.js 20+
+- npm 10+
+- A Vercel project for `frontend/` deployment
+- A Railway service, or another long-running Node.js host, for `backend/` deployment
 
-| Tool        | Minimum version            | Download              |
-| ----------- | -------------------------- | --------------------- |
-| **Node.js** | v18 (v20+ recommended)     | <https://nodejs.org>  |
-| **npm**     | v9+ (bundled with Node.js) | —                     |
-| **Git**     | any recent version         | <https://git-scm.com> |
-
-Verify your versions:
-
-```bash
-node -v   # should print v18.x.x or higher
-npm -v    # should print 9.x.x or higher
-git -v
-```
-
----
-
-### Step 1 — Clone the repository
+### 1. Clone the monorepo
 
 ```bash
 git clone https://github.com/<your-org>/CodeFlowViz-2.0.git
-cd "CodeFlowViz-2.0"
-```
-
----
-
-### Step 2 — Install dependencies
-
-Run a **single command from the repo root**. npm workspaces automatically installs packages for both `frontend/` and `backend/`:
-
-```bash
+cd CodeFlowViz-2.0
 npm install
 ```
 
-What gets installed:
+### 2. Configure environment variables
 
-| Workspace   | Key packages                                                                    |
-| ----------- | ------------------------------------------------------------------------------- |
-| `frontend/` | `next@14`, `react`, `react-dom`, `@monaco-editor/react`, `typescript`, `eslint` |
-| `backend/`  | `express`, `acorn`                                                              |
+Create environment files for local development.
 
-> **Tip:** If you ever need to install packages for just one workspace, use:
->
-> ```bash
-> npm install --workspace frontend
-> npm install --workspace backend
-> ```
-
----
-
-### Step 3 — Create environment files
-
-The app requires two small `.env` files for local development. **These files are git-ignored and must be created manually.**
-
-#### 3a. Frontend — `frontend/.env.local`
-
-This tells the Next.js UI where to send code-execution requests:
-
-**macOS / Linux / Git Bash:**
+#### Frontend: `frontend/.env.local`
 
 ```bash
-echo 'NEXT_PUBLIC_EXECUTE_API_URL=http://localhost:4000/api/execute' > frontend/.env.local
-```
-
-**Windows (PowerShell):**
-
-```powershell
-Set-Content frontend\.env.local 'NEXT_PUBLIC_EXECUTE_API_URL=http://localhost:4000/api/execute'
-```
-
-Or simply create the file manually in your editor with the content:
-
-```env
 NEXT_PUBLIC_EXECUTE_API_URL=http://localhost:4000/api/execute
 ```
 
-#### 3b. Backend — `backend/.env`
-
-This configures the Express server port and CORS policy:
-
-**macOS / Linux / Git Bash:**
+For production on Vercel, point this value to the deployed Railway endpoint:
 
 ```bash
-printf 'PORT=4000\nCORS_ORIGIN=http://localhost:3000\n' > backend/.env
+NEXT_PUBLIC_EXECUTE_API_URL=https://<your-railway-service>.up.railway.app/api/execute
 ```
 
-**Windows (PowerShell):**
+#### Backend: `backend/.env`
 
-```powershell
-Set-Content backend\.env "PORT=4000`nCORS_ORIGIN=http://localhost:3000"
-```
-
-Or create manually with content:
-
-```env
+```bash
 PORT=4000
 CORS_ORIGIN=http://localhost:3000
 ```
 
-> **Note:** If you skip `backend/.env`, the backend falls back to `PORT=4000` and `CORS_ORIGIN=*`. The `*` wildcard is fine for local use but never deploy with it.
+For production on Railway, set `CORS_ORIGIN` to your Vercel deployment URL:
 
----
-
-### Dummy environment variables (quick-start bypass)
-
-If you hit errors on first run because of missing variables, copy-paste the values below — they are safe placeholders that satisfy every validation check during local development.
-
-**`frontend/.env.local`**
-
-```env
-NEXT_PUBLIC_EXECUTE_API_URL=http://localhost:4000/api/execute
+```bash
+CORS_ORIGIN=https://<your-vercel-project>.vercel.app
 ```
 
-**`backend/.env`**
-
-```env
-PORT=4000
-CORS_ORIGIN=http://localhost:3000
-```
-
----
-
-### Step 4 — Start the development servers
-
-#### Option A — start both with one command (recommended)
-
-From the repo root:
+### 3. Run the full cockpit locally
 
 ```bash
 npm run dev
 ```
 
-This runs `npm run dev:backend` and `npm run dev:frontend` concurrently.
+This starts both workspaces:
 
-#### Option B — start each server in its own terminal
+| Workspace | Default URL | Command |
+| --- | --- | --- |
+| Frontend | `http://localhost:3000` | `npm run dev:frontend` |
+| Backend | `http://localhost:4000` | `npm run dev:backend` |
 
-**Terminal 1** (Next.js frontend — hot-reload enabled):
-
-```bash
-npm run dev:frontend
-```
-
-**Terminal 2** (Node.js backend — file-watch restart via `--watch`):
+### 3.1 Build and production preview
 
 ```bash
-npm run dev:backend
+npm run build
+npm run start
 ```
 
-#### Available npm scripts (root workspace)
+Use this flow to verify production bundles before deploying to Vercel/Railway.
 
-| Script                   | What it does                                   |
-| ------------------------ | ---------------------------------------------- |
-| `npm run dev`            | Starts both servers concurrently               |
-| `npm run dev:frontend`   | `next dev` inside `frontend/`                  |
-| `npm run dev:backend`    | `node --watch src/server.js` inside `backend/` |
-| `npm run build`          | Production build of the Next.js frontend       |
-| `npm run start:frontend` | Serves the production Next.js build            |
-| `npm run start:backend`  | Starts the backend without file-watch          |
-| `npm run lint`           | Runs ESLint on the frontend                    |
-
----
-
-### Step 5 — Verify everything is running
-
-| Check          | URL                            | Expected                                           |
-| -------------- | ------------------------------ | -------------------------------------------------- |
-| Frontend       | <http://localhost:3000>        | CodeFlowViz cockpit loads in the browser           |
-| Backend health | <http://localhost:4000/health> | `{ "ok": true, "service": "codeflowviz-backend" }` |
-
-Quick health-check via CLI:
+### 4. Verify the backend health endpoint
 
 ```bash
 curl http://localhost:4000/health
 ```
 
----
+Expected response:
 
-### Step 6 — Production build (optional)
-
-To compile the Next.js frontend into a production bundle:
-
-```bash
-npm run build          # builds frontend/
-npm run start:frontend # serves the built bundle
+```json
+{
+  "ok": true,
+  "service": "codeflowviz-backend"
+}
 ```
-
-To run the backend without the file-watcher:
-
-```bash
-npm run start:backend
-```
-
----
-
-### Troubleshooting
-
-| Symptom                              | Fix                                                                                                                                                                   |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm install` fails                  | Check `node -v` ≥ 18 and `npm -v` ≥ 9; reinstall Node.js if needed                                                                                                    |
-| Frontend shows "Failed to fetch"     | Confirm `frontend/.env.local` exists and `NEXT_PUBLIC_EXECUTE_API_URL` points to `http://localhost:4000/api/execute`                                                  |
-| CORS error in browser console        | Confirm `backend/.env` has `CORS_ORIGIN=http://localhost:3000` (exact match, no trailing slash)                                                                       |
-| Port 4000 already in use             | Change `PORT` in `backend/.env` and update `NEXT_PUBLIC_EXECUTE_API_URL` to match                                                                                     |
-| Backend starts but returns no traces | Check backend terminal for parser errors; test directly: `curl -X POST http://localhost:4000/api/execute -H "Content-Type: application/json" -d "{\"code\":\"1+1\"}"` |
-| `next: command not found`            | Run `npm install` from the repo root (not inside `frontend/`)                                                                                                         |
 
 ## Deployment
 
@@ -359,6 +230,7 @@ The backend responds with trace telemetry consumed by the timeline and variable 
 - **Trace sharing** — Exportable sessions for code reviews, incident analysis, and teaching.
 - **Custom cockpit layouts** — Persisted panels for architecture reviews, demos, and debugging workflows.
 - **Expanded sandbox policies** — More granular limits for memory, execution time, and API access.
+
 
 ## Open Source Program Context
 
