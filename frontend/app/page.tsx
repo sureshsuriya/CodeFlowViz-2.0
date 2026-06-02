@@ -25,13 +25,12 @@ export default function HomePage() {
           <button disabled>Reset</button>
         </aside>
 
-        <section className="panel editor">
-          <div className="panelTitle">Code Editor</div>
-          <div className="editorWrap">
-            <CodeEditor />
-          </div>
-        </section>
-
+<section className="panel editor" style={{ minHeight: '600px' }}>
+  <div className="panelTitle">Code Editor</div>
+  <div className="editorWrap" style={{ height: 'calc(100% - 48px)' }}>
+    <CodeEditor />
+  </div>
+</section>
         <aside className="panel right">
           <h2>Runtime Introspection</h2>
           <p>Trace events, highlighted source lines, console logs, errors, and timeout status stream back from the execution API.</p>
