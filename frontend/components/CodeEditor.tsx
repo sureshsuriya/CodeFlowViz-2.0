@@ -1,7 +1,7 @@
 'use client';
 
 import Editor, { type Monaco, type OnMount } from '@monaco-editor/react';
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const executionApiUrl = process.env.NEXT_PUBLIC_EXECUTE_API_URL ?? 'http://localhost:4000/api/execute';
 
@@ -35,11 +35,19 @@ export default function CodeEditor() {
   const [isRunning, setIsRunning] = useState(false);
   const [selectedSnapshotIndex, setSelectedSnapshotIndex] = useState<number | null>(null);
   const [editorTheme, setEditorTheme] = useState<'void' | 'ice'>('void');
+  
+  // Set a balanced default height for the bottom panel
+  const [bottomHeight, setBottomHeight] = useState(200);
+  const [isSashDragging, setIsSashDragging] = useState(false);
+  
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const decorationsRef = useRef<string[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // 👇 Only this useEffect is new — watches for theme toggle
+  const dragStartY = useRef(0);
+  const dragStartHeight = useRef(0);
+
   useEffect(() => {
     const observer = new MutationObserver(() => {
       const theme = document.documentElement.getAttribute('data-theme');
@@ -71,7 +79,6 @@ export default function CodeEditor() {
   }), []);
 
   const handleEditorWillMount = (monaco: Monaco) => {
-    // ✅ Original void theme — completely unchanged
     monaco.editor.defineTheme('void', {
       base: 'vs-dark',
       inherit: true,
@@ -92,7 +99,6 @@ export default function CodeEditor() {
       },
     });
 
-    // 👇 Only new addition — ice light theme
     monaco.editor.defineTheme('ice', {
       base: 'vs',
       inherit: true,
@@ -147,6 +153,44 @@ export default function CodeEditor() {
     selectSnapshot(Number(event.target.value));
   };
 
+  // Safe window-bounded drag event runner
+  const onSashMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsSashDragging(true);
+
+    dragStartY.current = e.clientY;
+    dragStartHeight.current = bottomHeight;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      requestAnimationFrame(() => {
+        if (!containerRef.current) return;
+
+        const deltaY = moveEvent.clientY - dragStartY.current;
+        // Dragging UP decreases deltaY, which dynamically increases our panel height
+        const newHeight = dragStartHeight.current - deltaY;
+
+        // Keep the dragging action inside safe bounds of the container height
+        const containerHeight = containerRef.current.getBoundingClientRect().height;
+        const minHeight = 60;
+        const maxHeight = containerHeight - 120; // Saves room for topbar/editor space
+
+        if (newHeight >= minHeight && newHeight <= maxHeight) {
+          setBottomHeight(newHeight);
+        }
+      });
+    };
+
+    const onMouseUp = () => {
+      setIsSashDragging(false);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [bottomHeight]);
+
   const runCode = async () => {
     setIsRunning(true);
     setOutput(null);
@@ -181,7 +225,36 @@ export default function CodeEditor() {
   };
 
   return (
-    <div className="codeRunner">
+    <div
+      ref={containerRef}
+      className="codeRunner"
+      style={{
+        display: 'grid',
+        height: '100%',             // Takes up exactly 100% of its workspace column container
+        maxHeight: 'calc(100vh - 120px)', // HARD-LOCKS container height so page doesn't grow longer
+        minHeight: 0,
+        gridTemplateRows: `auto 1fr 6px ${bottomHeight}px`, // 1fr on editor space steals directly from drag changes
+        position: 'relative',
+        overflow: 'hidden'
+      }}
+    >
+      {/* Global Mouse Event Overlay Shield */}
+      {isSashDragging && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 99999,
+            cursor: 'ns-resize',
+            backgroundColor: 'transparent',
+            userSelect: 'none',
+          }}
+        />
+      )}
+
       <div className="runnerToolbar">
         <button className="primaryAction" type="button" onClick={runCode} disabled={isRunning}>
           {isRunning ? 'Tracing…' : 'Trace Execution'}
@@ -189,7 +262,7 @@ export default function CodeEditor() {
         <span>AST hooks · JavaScript VM · 1s timeout · isolated worker</span>
       </div>
 
-      <div className="monacoPane">
+      <div className="monacoPane" style={{ minHeight: 0, overflow: 'hidden', flex: 1 }}>
         <Editor
           height="100%"
           defaultLanguage="javascript"
@@ -202,7 +275,24 @@ export default function CodeEditor() {
         />
       </div>
 
-      <div className={`outputPane ${output?.ok ? 'success' : output ? 'failure' : ''}`}>
+      {/* Draggable Sash Line element */}
+      <div
+        className={`sash ${isSashDragging ? 'dragging' : ''}`}
+        onMouseDown={onSashMouseDown}
+        style={{
+          height: '6px',
+          cursor: 'ns-resize',
+          background: isSashDragging ? 'var(--accent-blue, #7c3aed)' : '#1e1e35',
+          zIndex: 1000,
+          position: 'relative',
+          transition: 'background 0.15s ease',
+        }}
+      />
+
+      <div 
+        className={`outputPane ${output?.ok ? 'success' : output ? 'failure' : ''}`}
+        style={{ minHeight: 0, overflow: 'auto', height: `${bottomHeight}px` }}
+      >
         <div className="outputHeader">
           <span>Playback Engine</span>
           {output ? (
@@ -293,7 +383,7 @@ export default function CodeEditor() {
             ) : null}
           </div>
         ) : (
-          <p>Run code to see variable snapshots, loop checkpoints, console output, errors, and timeout status.</p>
+          <p style={{ padding: '1rem', margin: 0 }}>Run code to see variable snapshots, loop checkpoints, console output, errors, and timeout status.</p>
         )}
       </div>
     </div>

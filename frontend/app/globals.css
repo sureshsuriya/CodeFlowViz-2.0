@@ -23,7 +23,7 @@
 }
 
 :root {
-  color-scheme: dark;
+  color-scheme: dark light;
 }
 
 * {
@@ -93,14 +93,15 @@ h1 {
 [data-theme="light"] .status {
   color: var(--text-secondary);
 }
-
 .workspace {
   flex: 1;
   min-height: 0;
   display: grid;
   gap: 1rem;
   grid-template-columns: 230px minmax(0, 1fr) 280px;
+  align-items: stretch;
 }
+
 
 .panel {
   border: 1px solid #1f2f50;
@@ -159,13 +160,13 @@ button {
 .editorWrap {
   flex: 1;
   min-height: 0;
+  height: 100%;
 }
-
 .codeRunner {
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(320px, 1fr) minmax(150px, 0.35fr);
+  grid-template-rows: auto 1fr 5px 100px;
 }
 
 .runnerToolbar,
@@ -212,6 +213,24 @@ button {
 
 .monacoPane {
   min-height: 0;
+  overflow: hidden;
+}
+
+.sash {
+  height: 5px;
+  cursor: ns-resize;
+  background: transparent;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 10;
+  width: 100%;
+}
+
+.sash:hover,
+.sash.dragging {
+  background: var(--accent-blue);
+  opacity: 0.8;
 }
 
 .outputPane {
@@ -497,4 +516,7 @@ button {
 
 [data-theme="light"] .emptyInspector {
   color: var(--text-secondary);
+}
+[data-theme="light"] .sash {
+  background: #dbeafe !important;
 }
