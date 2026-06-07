@@ -29,26 +29,29 @@ type ExecutionResponse = {
   timedOut: boolean;
 };
 
+type DockPosition = 'bottom' | 'right';
+
 export default function CodeEditor() {
   const [code, setCode] = useState(starterCode);
   const [output, setOutput] = useState<ExecutionResponse | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [selectedSnapshotIndex, setSelectedSnapshotIndex] = useState<number | null>(null);
   const [editorTheme, setEditorTheme] = useState<'void' | 'ice'>('void');
-  
-  // Set a balanced default height for the bottom panel
   const [bottomHeight, setBottomHeight] = useState(200);
-  const [isMaximized, setIsMaximized] = useState(false)
-const [isCollapsed, setIsCollapsed] = useState(false)
+  const [rightWidth, setRightWidth] = useState(380);
+  const [isMaximized, setIsMaximized] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [isSashDragging, setIsSashDragging] = useState(false);
-  
+  const [dockPosition, setDockPosition] = useState<DockPosition>('bottom');
+
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const decorationsRef = useRef<string[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
-
   const dragStartY = useRef(0);
+  const dragStartX = useRef(0);
   const dragStartHeight = useRef(0);
+  const dragStartWidth = useRef(0);
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
@@ -155,28 +158,22 @@ const [isCollapsed, setIsCollapsed] = useState(false)
     selectSnapshot(Number(event.target.value));
   };
 
-  // Safe window-bounded drag event runner
+  // Vertical sash (bottom dock)
   const onSashMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsSashDragging(true);
-
     dragStartY.current = e.clientY;
     dragStartHeight.current = bottomHeight;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       requestAnimationFrame(() => {
         if (!containerRef.current) return;
-
         const deltaY = moveEvent.clientY - dragStartY.current;
-        // Dragging UP decreases deltaY, which dynamically increases our panel height
         const newHeight = dragStartHeight.current - deltaY;
-
-        // Keep the dragging action inside safe bounds of the container height
         const containerHeight = containerRef.current.getBoundingClientRect().height;
         const minHeight = 60;
-        const maxHeight = containerHeight - 120; // Saves room for topbar/editor space
-
+        const maxHeight = containerHeight - 120;
         if (newHeight >= minHeight && newHeight <= maxHeight) {
           setBottomHeight(newHeight);
         }
@@ -192,6 +189,74 @@ const [isCollapsed, setIsCollapsed] = useState(false)
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
   }, [bottomHeight]);
+
+  // Horizontal sash (right dock)
+  const onRightSashMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsSashDragging(true);
+    dragStartX.current = e.clientX;
+    dragStartWidth.current = rightWidth;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      requestAnimationFrame(() => {
+        if (!containerRef.current) return;
+        const deltaX = moveEvent.clientX - dragStartX.current;
+        const newWidth = dragStartWidth.current - deltaX;
+        const containerWidth = containerRef.current.getBoundingClientRect().width;
+        const minWidth = 200;
+        const maxWidth = containerWidth - 200;
+        if (newWidth >= minWidth && newWidth <= maxWidth) {
+          setRightWidth(newWidth);
+        }
+      });
+    };
+
+    const onMouseUp = () => {
+      setIsSashDragging(false);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [rightWidth]);
+
+  const maximizePanel = () => {
+    if (containerRef.current) {
+      if (dockPosition === 'bottom') {
+        const totalHeight = containerRef.current.getBoundingClientRect().height;
+        setBottomHeight(totalHeight);
+      } else {
+        const totalWidth = containerRef.current.getBoundingClientRect().width;
+        setRightWidth(totalWidth - 200);
+      }
+    }
+    setIsMaximized(true);
+    setIsCollapsed(false);
+  };
+
+  const collapsePanel = () => {
+    if (dockPosition === 'bottom') {
+      setBottomHeight(38);
+    } else {
+      setRightWidth(38);
+    }
+    setIsCollapsed(true);
+    setIsMaximized(false);
+  };
+
+  const resetPanel = () => {
+    setBottomHeight(200);
+    setRightWidth(380);
+    setIsMaximized(false);
+    setIsCollapsed(false);
+  };
+
+  const toggleDock = () => {
+    setDockPosition(prev => prev === 'bottom' ? 'right' : 'bottom');
+    resetPanel();
+  };
 
   const runCode = async () => {
     setIsRunning(true);
@@ -226,235 +291,288 @@ const [isCollapsed, setIsCollapsed] = useState(false)
     }
   };
 
-const maximizePanel = () => {
-    if (containerRef.current) {
-      // Snaps the height to the exact full boundary of the container
-      const totalHeight = containerRef.current.getBoundingClientRect().height;
-      setBottomHeight(totalHeight);
-    } else {
-      setBottomHeight(window.innerHeight - 120);
-    }
-    setIsMaximized(true);
-    setIsCollapsed(false);
-  };
+  // Output panel content (shared between bottom and right dock)
+  const outputPanelContent = (
+    <>
+      <div className="outputHeader" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span>Playback Engine</span>
+          {output ? (
+            <span style={{ opacity: 0.7, fontSize: '0.78rem' }}>
+              {snapshots.length} snapshots · {output.instrumentation?.hookCount ?? 0} hooks · {output.durationMs}ms
+            </span>
+          ) : (
+            <span style={{ opacity: 0.7, fontSize: '0.78rem' }}>Idle</span>
+          )}
+        </div>
 
-  const collapsePanel = () => {
-    setBottomHeight(38); // Down to a thin header bar line
-    setIsCollapsed(true);
-    setIsMaximized(false);
-  };
+        {/* Quick Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {/* Dock Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleDock}
+            title={dockPosition === 'bottom' ? 'Move to right side' : 'Move to bottom'}
+            style={{ background: 'transparent', border: '1px solid #1f2f50', color: '#9fb8ea', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer', fontSize: '11px', lineHeight: 1 }}
+          >
+            {dockPosition === 'bottom' ? '⇒' : '⇓'}
+          </button>
+          {isMaximized || isCollapsed ? (
+            <button
+              type="button"
+              onClick={resetPanel}
+              title="Restore Normal Layout"
+              style={{ background: 'transparent', border: '1px solid #1f2f50', color: '#9fb8ea', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer', fontSize: '12px', lineHeight: 1 }}
+            >
+              🗗
+            </button>
+          ) : null}
+          {!isCollapsed && (
+            <button
+              type="button"
+              onClick={collapsePanel}
+              title="Collapse Panel"
+              style={{ background: 'transparent', border: '1px solid #1f2f50', color: '#9fb8ea', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer', fontSize: '12px', lineHeight: 1 }}
+            >
+              {dockPosition === 'bottom' ? '▼' : '▶'}
+            </button>
+          )}
+          {!isMaximized && (
+            <button
+              type="button"
+              onClick={maximizePanel}
+              title="Maximize Panel"
+              style={{ background: 'transparent', border: '1px solid #1f2f50', color: '#9fb8ea', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer', fontSize: '12px', lineHeight: 1 }}
+            >
+              {dockPosition === 'bottom' ? '▲' : '◀'}
+            </button>
+          )}
+        </div>
+      </div>
 
-  const resetPanel = () => {
-    setBottomHeight(200); // Reverts cleanly to standard split view
-    setIsMaximized(false);
-    setIsCollapsed(false);
-  };
+      {!isCollapsed && (
+        <div className="outputBody">
+          {output ? (
+            <>
+              {output.error ? <pre className="errorText">{output.error}</pre> : null}
+              {output.result ? <pre>Result ({output.result.type}): {output.result.value}</pre> : null}
+              {snapshots.length ? (
+                <>
+                  <section className="scrubberPanel" aria-label="Execution playback scrubber">
+                    <div className="scrubberMeta">
+                      <strong>
+                        Snapshot {selectedSnapshotIndex === null ? 0 : selectedSnapshotIndex + 1} of {snapshots.length}
+                      </strong>
+                      {selectedSnapshot ? (
+                        <span>step #{selectedSnapshot.step} · line {selectedSnapshot.line} · {selectedSnapshot.event}</span>
+                      ) : null}
+                    </div>
+                    <input
+                      aria-label="Scrub execution snapshots"
+                      className="snapshotScrubber"
+                      type="range"
+                      min="0"
+                      max={snapshots.length - 1}
+                      step="1"
+                      value={selectedSnapshotIndex ?? 0}
+                      onChange={scrubToSnapshot}
+                    />
+                  </section>
+
+                  <section className="inspectorPanel" aria-label="Variable Inspector">
+                    <div className="inspectorHeader">
+                      <h3>Variable Inspector</h3>
+                      {selectedSnapshot ? <span>Active line {selectedSnapshot.line}</span> : null}
+                    </div>
+                    <table className="variableTable">
+                      <thead>
+                        <tr>
+                          <th scope="col">Name</th>
+                          <th scope="col">Type</th>
+                          <th scope="col">Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedVariables.length ? (
+                          selectedVariables.map(([name, value]) => (
+                            <tr key={`${selectedSnapshot?.step}-${name}`}>
+                              <th scope="row">{name}</th>
+                              <td>{value.type}</td>
+                              <td><code>{value.value}</code></td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={3} className="emptyInspector">No variables changed in this snapshot.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </section>
+
+                  <ol className="timelineList" aria-label="Execution trace snapshots">
+                    {snapshots.map((snapshot, index) => (
+                      <li key={snapshot.step}>
+                        <button
+                          className={selectedSnapshotIndex === index ? 'timelineStep active' : 'timelineStep'}
+                          type="button"
+                          onClick={() => selectSnapshot(index)}
+                        >
+                          <span className="stepMeta">#{snapshot.step} · line {snapshot.line} · {snapshot.event}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                </>
+              ) : null}
+              {output.logs.length ? (
+                <div className="logList">
+                  {output.logs.map((log, index) => (
+                    <pre key={`${log.level}-${index}`}>[{log.level}] {log.message}</pre>
+                  ))}
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <p style={{ padding: '0.5rem', margin: 0 }}>
+              Run code to see variable snapshots, loop checkpoints, console output, errors, and timeout status.
+            </p>
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  // ── BOTTOM DOCK LAYOUT ──
+  if (dockPosition === 'bottom') {
+    return (
+      <div
+        ref={containerRef}
+        className="codeRunner"
+        style={{
+          display: 'grid',
+          height: '100%',
+          maxHeight: 'calc(100vh - 120px)',
+          minHeight: 0,
+          gridTemplateRows: `auto 1fr 6px ${bottomHeight}px`,
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        {isSashDragging && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 99999, cursor: 'ns-resize', backgroundColor: 'transparent', userSelect: 'none' }} />
+        )}
+
+        <div className="runnerToolbar">
+          <button className="primaryAction" type="button" onClick={runCode} disabled={isRunning}>
+            {isRunning ? 'Tracing…' : 'Trace Execution'}
+          </button>
+          <span>AST hooks · JavaScript VM · 1s timeout · isolated worker</span>
+        </div>
+
+        <div className="monacoPane" style={{ minHeight: 0, overflow: 'hidden' }}>
+          <Editor
+            height="100%"
+            defaultLanguage="javascript"
+            value={code}
+            onChange={(value) => setCode(value ?? '')}
+            beforeMount={handleEditorWillMount}
+            onMount={handleEditorMount}
+            theme={editorTheme}
+            options={options}
+          />
+        </div>
+
+        {/* Vertical Sash */}
+        <div
+          className={`sash ${isSashDragging ? 'dragging' : ''}`}
+          onMouseDown={isMaximized || isCollapsed ? undefined : onSashMouseDown}
+          style={{
+            height: '6px',
+            cursor: isMaximized || isCollapsed ? 'not-allowed' : 'ns-resize',
+            background: isSashDragging ? 'var(--accent-blue, #7c3aed)' : '#1e1e35',
+            zIndex: 1000,
+            transition: 'background 0.15s ease',
+          }}
+        />
+
+        <div
+          className={`outputPane ${output?.ok ? 'success' : output ? 'failure' : ''}`}
+          style={{ minHeight: 0, overflow: 'auto', height: `${bottomHeight}px` }}
+        >
+          {outputPanelContent}
+        </div>
+      </div>
+    );
+  }
+
+  // ── RIGHT DOCK LAYOUT ──
   return (
     <div
       ref={containerRef}
-      className="codeRunner"
       style={{
-        display: 'grid',
-        height: '100%',             // Takes up exactly 100% of its workspace column container
-        maxHeight: 'calc(100vh - 120px)', // HARD-LOCKS container height so page doesn't grow longer
+        display: 'flex',
+        flexDirection: 'row',
+        height: '100%',
+        maxHeight: 'calc(100vh - 120px)',
         minHeight: 0,
-        gridTemplateRows: `auto 1fr 6px ${bottomHeight}px`, // 1fr on editor space steals directly from drag changes
         position: 'relative',
-        overflow: 'hidden'
+        overflow: 'hidden',
       }}
     >
-      {/* Global Mouse Event Overlay Shield */}
       {isSashDragging && (
-        <div 
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 99999,
-            cursor: 'ns-resize',
-            backgroundColor: 'transparent',
-            userSelect: 'none',
-          }}
-        />
+        <div style={{ position: 'fixed', inset: 0, zIndex: 99999, cursor: 'ew-resize', backgroundColor: 'transparent', userSelect: 'none' }} />
       )}
 
-      <div className="runnerToolbar">
-        <button className="primaryAction" type="button" onClick={runCode} disabled={isRunning}>
-          {isRunning ? 'Tracing…' : 'Trace Execution'}
-        </button>
-        <span>AST hooks · JavaScript VM · 1s timeout · isolated worker</span>
+      {/* Left side — toolbar + editor */}
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, overflow: 'hidden' }}>
+        <div className="runnerToolbar">
+          <button className="primaryAction" type="button" onClick={runCode} disabled={isRunning}>
+            {isRunning ? 'Tracing…' : 'Trace Execution'}
+          </button>
+          <span>AST hooks · JavaScript VM · 1s timeout · isolated worker</span>
+        </div>
+
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <Editor
+            height="100%"
+            defaultLanguage="javascript"
+            value={code}
+            onChange={(value) => setCode(value ?? '')}
+            beforeMount={handleEditorWillMount}
+            onMount={handleEditorMount}
+            theme={editorTheme}
+            options={options}
+          />
+        </div>
       </div>
 
-      <div className="monacoPane" style={{ minHeight: 0, overflow: 'hidden', flex: 1 }}>
-        <Editor
-          height="100%"
-          defaultLanguage="javascript"
-          value={code}
-          onChange={(value) => setCode(value ?? '')}
-          beforeMount={handleEditorWillMount}
-          onMount={handleEditorMount}
-          theme={editorTheme}
-          options={options}
-        />
-      </div>
-
-      {/* Draggable Sash Line element */}
-      {/* Draggable Sash Line element */}
+      {/* Horizontal Sash */}
       <div
-        className={`sash ${isSashDragging ? 'dragging' : ''}`}
-        onMouseDown={isMaximized || isCollapsed ? undefined : onSashMouseDown}
+        onMouseDown={isMaximized || isCollapsed ? undefined : onRightSashMouseDown}
         style={{
-          height: '6px',
-          cursor: isMaximized || isCollapsed ? 'not-allowed' : 'ns-resize',
+          width: '6px',
+          cursor: isMaximized || isCollapsed ? 'not-allowed' : 'ew-resize',
           background: isSashDragging ? 'var(--accent-blue, #7c3aed)' : '#1e1e35',
+          flexShrink: 0,
           zIndex: 1000,
-          position: 'relative',
           transition: 'background 0.15s ease',
         }}
       />
 
-      <div 
+      {/* Right side — output panel */}
+      <div
         className={`outputPane ${output?.ok ? 'success' : output ? 'failure' : ''}`}
-        style={{ minHeight: 0, overflow: 'auto', height: `${bottomHeight}px` }}
+        style={{
+          width: `${rightWidth}px`,
+          minWidth: 0,
+          overflow: 'auto',
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
       >
-        <div className="outputHeader" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span>Playback Engine</span>
-            {output ? (
-              <span style={{ opacity: 0.7, fontSize: '0.78rem' }}>
-                {snapshots.length} snapshots · {output.instrumentation?.hookCount ?? 0} hooks · {output.durationMs}ms
-              </span>
-            ) : (
-              <span style={{ opacity: 0.7, fontSize: '0.78rem' }}>Idle</span>
-            )}
-          </div>
-          
-          {/* Quick Actions Control Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            {isMaximized || isCollapsed ? (
-              <button 
-                type="button" 
-                onClick={resetPanel}
-                title="Restore Normal Layout"
-                style={{ background: 'transparent', border: '1px solid #1f2f50', color: '#9fb8ea', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer', fontSize: '12px', lineHeight: 1 }}
-              >
-                🗗
-              </button>
-            ) : null}
-            {!isCollapsed && (
-              <button 
-                type="button" 
-                onClick={collapsePanel}
-                title="Collapse Panel"
-                style={{ background: 'transparent', border: '1px solid #1f2f50', color: '#9fb8ea', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer', fontSize: '12px', lineHeight: 1 }}
-              >
-                ▼
-              </button>
-            )}
-            {!isMaximized && (
-              <button 
-                type="button" 
-                onClick={maximizePanel}
-                title="Maximize Panel"
-                style={{ background: 'transparent', border: '1px solid #1f2f50', color: '#9fb8ea', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer', fontSize: '12px', lineHeight: 1 }}
-              >
-                ▲
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Prevent content from overflowing when collapsed */}
-        {!isCollapsed && (
-          <div className="outputBody">
-            {output ? (
-              <>
-                {output.error ? <pre className="errorText">{output.error}</pre> : null}
-                {output.result ? <pre>Result ({output.result.type}): {output.result.value}</pre> : null}
-                {snapshots.length ? (
-                  <>
-                    <section className="scrubberPanel" aria-label="Execution playback scrubber">
-                      <div className="scrubberMeta">
-                        <strong>
-                          Snapshot {selectedSnapshotIndex === null ? 0 : selectedSnapshotIndex + 1} of {snapshots.length}
-                        </strong>
-                        {selectedSnapshot ? (
-                          <span>step #{selectedSnapshot.step} · line {selectedSnapshot.line} · {selectedSnapshot.event}</span>
-                        ) : null}
-                      </div>
-                      <input
-                        aria-label="Scrub execution snapshots"
-                        className="snapshotScrubber"
-                        type="range"
-                        min="0"
-                        max={snapshots.length - 1}
-                        step="1"
-                        value={selectedSnapshotIndex ?? 0}
-                        onChange={scrubToSnapshot}
-                      />
-                    </section>
-
-                    <section className="inspectorPanel" aria-label="Variable Inspector">
-                      <div className="inspectorHeader">
-                        <h3>Variable Inspector</h3>
-                        {selectedSnapshot ? <span>Active line {selectedSnapshot.line}</span> : null}
-                      </div>
-                      <table className="variableTable">
-                        <thead>
-                          <tr>
-                            <th scope="col">Name</th>
-                            <th scope="col">Type</th>
-                            <th scope="col">Value</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedVariables.length ? (
-                            selectedVariables.map(([name, value]) => (
-                              <tr key={`${selectedSnapshot?.step}-${name}`}>
-                                <th scope="row">{name}</th>
-                                <td>{value.type}</td>
-                                <td><code>{value.value}</code></td>
-                              </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan={3} className="emptyInspector">No variables changed in this snapshot.</td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </section>
-
-                    <ol className="timelineList" aria-label="Execution trace snapshots">
-                      {snapshots.map((snapshot, index) => (
-                        <li key={snapshot.step}>
-                          <button
-                            className={selectedSnapshotIndex === index ? 'timelineStep active' : 'timelineStep'}
-                            type="button"
-                            onClick={() => selectSnapshot(index)}
-                          >
-                            <span className="stepMeta">#{snapshot.step} · line {snapshot.line} · {snapshot.event}</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ol>
-                  </>
-                ) : null}
-                {output.logs.length ? (
-                  <div className="logList">
-                    {output.logs.map((log, index) => (
-                      <pre key={`${log.level}-${index}`}>[{log.level}] {log.message}</pre>
-                    ))}
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <p style={{ padding: '0.5rem', margin: 0 }}>Run code to see variable snapshots, loop checkpoints, console output, errors, and timeout status.</p>
-            )}
-          </div>
-        )}
+        {outputPanelContent}
       </div>
     </div>
   );
