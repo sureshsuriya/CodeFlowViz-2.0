@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://code-flow-viz-2-0.vercel.app"><strong>Launch the live Vercel deployment →</strong></a>
 </p>
-
+<p align="center"><strong>Note: If you haven't already, please consider leaving a ⭐ on the repository!</strong></p>
 <p align="center">
   <img alt="Next.js 14" src="https://img.shields.io/badge/Next.js-14-000000?style=for-the-badge&logo=nextdotjs" />
   <img alt="Node.js" src="https://img.shields.io/badge/Node.js-Express-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" />
