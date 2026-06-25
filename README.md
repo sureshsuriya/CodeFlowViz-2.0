@@ -150,7 +150,7 @@ This starts both workspaces:
 | Frontend | `http://localhost:3000` | `npm run dev:frontend` |
 | Backend | `http://localhost:4000` | `npm run dev:backend` |
 
-### 3.1 Build and production preview
+#### 3.1 Build and production preview
 
 ```bash
 npm run build
