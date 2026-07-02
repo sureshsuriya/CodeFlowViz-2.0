@@ -38,12 +38,12 @@ function normalizeTimeout(timeoutMs) {
   return Math.min(MAX_TIMEOUT_MS, Math.max(MIN_TIMEOUT_MS, Math.trunc(timeoutMs)));
 }
 
-function runInSandbox(code, timeoutMs) {
+function runInSandbox(code, timeoutMs, language = 'javascript') {
   const startedAt = performance.now();
 
   return new Promise((resolve) => {
     const worker = new Worker(workerPath, {
-      workerData: { code, timeoutMs, language},
+      workerData: { code, timeoutMs, language },
       resourceLimits: {
         maxOldGenerationSizeMb: 32,
         maxYoungGenerationSizeMb: 8,
