@@ -1,0 +1,17 @@
+language: "en-US"
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+chat:
+  auto_reply: true
+custom_instructions:
+  - path: "frontend/**"
+    instructions: |
+      This is a Next.js frontend deployed on Vercel. 
+      Ensure no localhost URLs are hardcoded. All backend API calls MUST use the NEXT_PUBLIC_API_URL environment variable.
+  - path: "backend/**"
+    instructions: |
+      This is a Node.js/Express backend deployed on Railway.
+      Watch out for CORS misconfigurations. Ensure cross-origin requests from *.vercel.app are permitted.
+      Pay special attention to the AST worker threads and flag any potential infinite loops or unhandled promises.
