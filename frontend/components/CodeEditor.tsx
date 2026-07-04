@@ -58,6 +58,7 @@ export default function CodeEditor() {
   const dragStartX = useRef(0);
   const dragStartHeight = useRef(0);
   const dragStartWidth = useRef(0);
+  const isRequestPendingRef = useRef(false);
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
@@ -263,6 +264,8 @@ export default function CodeEditor() {
   };
 
   const runCode = async () => {
+    if (isRequestPendingRef.current) return;
+    isRequestPendingRef.current = true;
     setIsRunning(true);
     setOutput(null);
     setSelectedSnapshotIndex(null);
@@ -291,6 +294,7 @@ export default function CodeEditor() {
         error: error instanceof Error ? error.message : 'Unable to reach the execution sandbox.',
       });
     } finally {
+      isRequestPendingRef.current = false;
       setIsRunning(false);
     }
   };
