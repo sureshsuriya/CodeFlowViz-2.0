@@ -266,13 +266,15 @@ export default function CodeEditor() {
   const runCode = async () => {
     if (isRequestPendingRef.current) return;
     isRequestPendingRef.current = true;
-    setIsRunning(true);
-    setOutput(null);
-    setSelectedSnapshotIndex(null);
-    if (editorRef.current) {
-      decorationsRef.current = editorRef.current.deltaDecorations(decorationsRef.current, []);
-    }
+
     try {
+      setIsRunning(true);
+      setOutput(null);
+      setSelectedSnapshotIndex(null);
+      if (editorRef.current) {
+        decorationsRef.current = editorRef.current.deltaDecorations(decorationsRef.current, []);
+      }
+
       const response = await fetch(executionApiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
