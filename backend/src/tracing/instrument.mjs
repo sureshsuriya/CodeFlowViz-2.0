@@ -96,6 +96,31 @@ function getSafeTempVarName(source) {
   return name;
 }
 
+function hasAwaitOrYield(node) {
+  let found = false;
+  function walk(n) {
+    if (!n || found) return;
+    if (['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression'].includes(n.type)) {
+      return; // Skip walking nested function scopes
+    }
+    if (n.type === 'AwaitExpression' || n.type === 'YieldExpression') {
+      found = true;
+      return;
+    }
+    for (const key in n) {
+      if (n[key] && typeof n[key] === 'object') {
+        if (Array.isArray(n[key])) {
+          n[key].forEach(walk);
+        } else if (n[key].type) {
+          walk(n[key]);
+        }
+      }
+    }
+  }
+  walk(node);
+  return found;
+}
+
 
 function makeSnapshot(names) {
   if (!names.length) return '{}';
@@ -151,18 +176,20 @@ function visit(source, node, inserts) {
       break;
     case 'ReturnStatement': {
       if (node.argument) {
-        const changes = findAssignmentsAndUpdates(node.argument);
-        if (changes.length > 0) {
-          const names = new Set();
-          changes.forEach((expr) => {
-            getAssignedNames(expr).forEach((name) => names.add(name));
-          });
-          if (names.size > 0) {
-            const line = node.loc?.start?.line ?? lineOf(source, node.start);
-            const tempVar = getSafeTempVarName(source);
-            const captureCall = `__trace.capture(${line}, "assignment", ${makeSnapshot([...names])})`;
-            insertAt(inserts, node.argument.start, `(() => { const ${tempVar} = `, 1);
-            insertAt(inserts, node.argument.end, `; ${captureCall}; return ${tempVar}; })()`, -1);
+        if (!hasAwaitOrYield(node.argument)) {
+          const changes = findAssignmentsAndUpdates(node.argument);
+          if (changes.length > 0) {
+            const names = new Set();
+            changes.forEach((expr) => {
+              getAssignedNames(expr).forEach((name) => names.add(name));
+            });
+            if (names.size > 0) {
+              const line = node.loc?.start?.line ?? lineOf(source, node.start);
+              const tempVar = getSafeTempVarName(source);
+              const captureCall = `__trace.capture(${line}, "assignment", ${makeSnapshot([...names])})`;
+              insertAt(inserts, node.argument.start, `(() => { const ${tempVar} = (`, 1);
+              insertAt(inserts, node.argument.end, `); ${captureCall}; return ${tempVar}; })()`, -1);
+            }
           }
         }
         visit(source, node.argument, inserts);
